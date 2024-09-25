@@ -1,7 +1,7 @@
 % *********************************************************************
 %               videoTracker - Demonstration Example
 % *********************************************************************
-% This script demondtrates how to invoke the videoTracker function. 
+% This script demonstrates how to invoke the videoTracker function. 
 % Save the calibration image and video in a sub-folder within the 
 % ~/data/input directory.
 % All output will be saved in a sub-folder of the same name in the 
