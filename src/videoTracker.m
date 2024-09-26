@@ -37,6 +37,10 @@ function videoTracker(varargin)
 % 'blobs'      - @double, defines the number of blobs to track.
 % 'blobArea'   - @double, defines the minimum blob area to track.
 % 'frames'     - @double, defines the frame rate to save the output video.
+% 'threshold'  - @double, defines the value of the mask used to 
+%                distiniguish the blobs from the background.
+% 'filter'     - @double, a [1 x 2] vector defining the median filter mask 
+%                size.
 %
 
 
@@ -45,6 +49,7 @@ excludeTime = get_option(varargin,'exclude',10);
 numBlobs = get_option(varargin,'blobs',3);
 blobArea = get_option(varargin,'blobArea',200);
 frameRate = get_option(varargin,'frames',5);
+medfilterSize = get_option(varargin,'filter',[3 3]);
 
 
 %% Default directories - Do not modify
@@ -59,6 +64,7 @@ Ini.outputPath = [Ini.dataPath,'output/'];
 %% Define the screen size
 % Open an empty figure, save the handle to a variable
 f = figure('Units','pixels');
+set(f, 'Visible', 'off');
 % Maximise the figure window
 f.WindowState = 'maximized'; 
 fPos = get(f,'pos');
@@ -100,12 +106,17 @@ end
 %% Select the scalebar region of interest (ROI) in the image for calibration
 % Open a figure, save the handle to a variable
 f = figure('Units','pixels');
-image(imageFrame);
+% Make the figure invisible
+set(f, 'Visible', 'off');
+% Display the image
+imshow(imageFrame);
 % Maximise the figure window
 f.WindowState = 'maximized';
 % Maintain plot aspect ratio
 pbaspect([imageFileInfo.Width/imageFileInfo.Height 1 1]);
 set(f,'Name','Select a rectangle to make the calibration measurement within','NumberTitle','on');
+% Make the figure visible
+set(f, 'Visible', 'on');
 % Get the position of the selected ROI for calibration
 roiPosition = getrect(gcf);
 clf; close all;
@@ -114,13 +125,18 @@ roiSelectedArea = imcrop(imageFrame,roiPosition);
 
 % Open a figure, save the handle to a variable
 f = figure('Units','pixels'); 
-image(roiSelectedArea);
+% Make the figure invisible
+set(f, 'Visible', 'off');
+% Display the image
+imshow(roiSelectedArea);
 % Maximise the figure window
 f.WindowState = 'maximized'; 
 % Maintain plot aspect ratio
 pbaspect([size(roiSelectedArea,2)/size(roiSelectedArea,1) 1 1]);
-% Select a line to calibrate
 set(f,'Name','Select a line defining the calibration distance','NumberTitle','on');
+% Make the figure visible
+set(f, 'Visible', 'on');
+% Select a line to calibrate
 [x,y] = getline(gcf);
 % Calculate the calibration distance in pixels
 pixelDistance = round(sqrt((y(2)-y(1))^2 + (x(2)-x(1))^2));
@@ -202,7 +218,7 @@ set(f,'position',[(screenWidth-(videoFileInfo.Width/2))/2,...
     videoFileInfo.Width/2,...
     videoFileInfo.Height/2]);
 roiSelect = videoFrames2Analyse.frames(1,1).cdata;
-image(roiSelect);
+imshow(roiSelect);
 set(f,'Name','Select a rectangle containing blobs for analysis','NumberTitle','on');
 roiPosition = getrect(f);
 clf; close all;
@@ -276,13 +292,13 @@ for frameNumber = 1:numFrames2Analyse
 
     %% ROI image processing
     % Define a threshold
-    level = 0.3;
+    level = get_option(varargin,'threshold',graythresh(roi2Analyse));
     % Binarise the image using the threshold
-    roiBinary = im2bw(roi2Analyse,level);
+    roiBinary = imbinarize(roi2Analyse,level);
     % Dilate the white regions
-    roiDilate = bwmorph(roiBinary,'dilate');
-    % Filter out the noise by using a 3x3 median filter
-    roiMedianFilter = medfilt2(roiDilate, [3 3]);
+    roiDilate = bwmorph(roiBinary(:,:,1),'dilate');
+    % Filter out the noise by using a median filter (default = 3x3)
+    roiMedianFilter = medfilt2(roiDilate, medfilterSize);
     % Get the corodinates of the centroids and bounding boxes of the blobs
     [centroid, bBox] = step(hblob, roiMedianFilter);
     coordinates(:,:,frameNumber) = centroid;

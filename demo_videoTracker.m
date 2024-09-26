@@ -21,5 +21,6 @@ set(0,'DefaultFigureWindowStyle','normal');
 
 %% Call the videoTracker
 videoTracker('exclude',8,'blobs',3,'frames',5);
+% videoTracker('exclude',8,'blobs',3,'frames',5,'threshold',0.3,'filter',[3 3]);
 
 
