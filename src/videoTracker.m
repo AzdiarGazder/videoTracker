@@ -1,10 +1,10 @@
 function videoTracker(varargin)
 %% Function description:
-% This function calculates the displacement of and between blobs drawn 
-% along the gauge length of a dog-bone sample subjected to uniaxial 
+% This function calculates the displacement of and between blobs drawn
+% along the gauge length of a dog-bone sample subjected to uniaxial
 % tension.
 % Initial input requires a calibration image with a scale bar. Following
-% that, blob displacemnt is calculated from a video of the blobs when the 
+% that, blob displacemnt is calculated from a video of the blobs when the
 % dog-bone sample was subjected to uniaxial tension.
 %
 %% Author:
@@ -12,7 +12,7 @@ function videoTracker(varargin)
 %
 %% Acknowledgements:
 % This function is modified from the video extensometer script by:
-% M. Battaini, Deformation behaviour and twinning mechanisms of 
+% M. Battaini, Deformation behaviour and twinning mechanisms of
 % commercially pure titanium alloys, PhD thesis, Monash University, 2007.
 % https://bridges.monash.edu/articles/thesis/Deformation_behaviour_and_twinning_mechanisms_of_commercially_pure_titanium_alloys/4534439?file=7341602
 %
@@ -26,20 +26,20 @@ function videoTracker(varargin)
 %% Input:
 %
 %% Output:
-%  *.avi        - a video file containing the displacement of and between 
+%  *.avi        - a video file containing the displacement of and between
 %                 a defined number of blobs.
-%  *.txt        - a text file containing the displacement of and between 
+%  *.txt        - a text file containing the displacement of and between
 %                 a defined number of blobs.
 %
 %% Options:
-% 'exclude'    - @double, defines the seconds to exclude from the end of 
+% 'exclude'    - @double, defines the seconds to exclude from the end of
 %                the video.
 % 'blobs'      - @double, defines the number of blobs to track.
 % 'blobArea'   - @double, defines the minimum blob area to track.
 % 'frames'     - @double, defines the frame rate to save the output video.
-% 'threshold'  - @double, defines the value of the mask used to 
+% 'threshold'  - @double, defines the value of the mask used to
 %                distiniguish the blobs from the background.
-% 'filter'     - @double, a [1 x 2] vector defining the median filter mask 
+% 'filter'     - @double, a [1 x 2] vector defining the median filter mask
 %                size.
 %
 
@@ -66,7 +66,7 @@ Ini.outputPath = [Ini.dataPath,'output/'];
 f = figure('Units','pixels');
 set(f, 'Visible', 'off');
 % Maximise the figure window
-f.WindowState = 'maximized'; 
+f.WindowState = 'maximized';
 fPos = get(f,'pos');
 % Calculate the taskbar offset
 taskBarOffset = fPos(2);
@@ -124,13 +124,13 @@ clf; close all;
 roiSelectedArea = imcrop(imageFrame,roiPosition);
 
 % Open a figure, save the handle to a variable
-f = figure('Units','pixels'); 
+f = figure('Units','pixels');
 % Make the figure invisible
 set(f, 'Visible', 'off');
 % Display the image
 imshow(roiSelectedArea);
 % Maximise the figure window
-f.WindowState = 'maximized'; 
+f.WindowState = 'maximized';
 % Maintain plot aspect ratio
 pbaspect([size(roiSelectedArea,2)/size(roiSelectedArea,1) 1 1]);
 set(f,'Name','Select a line defining the calibration distance','NumberTitle','on');
@@ -183,14 +183,26 @@ else
     % Define the last frame to end analysis
     endFrame = numFramesInVideo - numFrames2Delete;
     % List the total number of frames to analyse
-    listFrames = [startFrame : videoFileInfo.FrameRate : endFrame]';
+    listOfFrames = [startFrame : videoFileInfo.FrameRate : endFrame]';
     % Define the total number of frames to analyse
-    numFrames2Analyse = length(listFrames);
+    numFrames2Analyse = length(listOfFrames);
     % Add a time stamp to each frame to analyse
-    timeStamp = listFrames .* timeInterval;
+    timeStamp = listOfFrames .* timeInterval;
 
-    % Only read the video frames to analyse (saves time)
-    videoFrames2Analyse = mmread(pfName,listFrames);
+    % Loop through the listed frames
+%     videoFrames2Analyse = repmat(struct(), length(listOfFrames), 1);
+    for ii = 1:length(listOfFrames)
+        % Set the CurrentTime property to the specific frame
+        frameNumber = listOfFrames(ii);
+        % Convert frame number to time
+        videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;  
+        % Read the frame
+        videoFrames2Analyse{ii,:} = readFrame(videoFileInfo);
+        progress(ii,length(listOfFrames));
+    end
+
+%     % Only read the video frames to analyse (saves time)
+%     videoFrames2Analyse = mmread(pfName,listFrames);
     disp('Finished loading video...');
     toc
     disp('...')
@@ -217,7 +229,8 @@ set(f,'position',[(screenWidth-(videoFileInfo.Width/2))/2,...
     (screenHeight-(videoFileInfo.Height/2))/2,...
     videoFileInfo.Width/2,...
     videoFileInfo.Height/2]);
-roiSelect = videoFrames2Analyse.frames(1,1).cdata;
+% roiSelect = videoFrames2Analyse.frames(1,1).cdata;
+roiSelect = videoFrames2Analyse{1};
 imshow(roiSelect);
 set(f,'Name','Select a rectangle containing blobs for analysis','NumberTitle','on');
 roiPosition = getrect(f);
@@ -238,16 +251,13 @@ hblob = vision.BlobAnalysis('AreaOutputPort', false, ...
 
 
 %% Define the paths to save data and video
-% pfName_DBLslash = strrep(pfName,'\','\\');
-% pfName_dataOutput = fullfile(sprintf(strcat(pfName_DBLslash(1:length(pfName_DBLslash)-4),'_Output.txt')));
-% pfName_videoOutput = fullfile(sprintf(strcat(pfName_DBLslash(1:length(pfName_DBLslash)-4),'_Output.avi')));
-
 outputSubfolder = fullfile(Ini.outputPath,fileName(1:end-4));
 if ~exist(outputSubfolder, 'dir')
     mkdir(outputSubfolder);
 end
 pfName_dataOutput = [outputSubfolder,'/',fileName(1:end-4),'_Output.txt'];
 pfName_videoOutput = [outputSubfolder,'/',fileName(1:end-4),'_Output.avi'];
+%%
 
 
 
@@ -287,7 +297,8 @@ avgDisplacement_betweenBlobs = zeros(numFrames2Analyse,1);
 for frameNumber = 1:numFrames2Analyse
 
     % Crop the frame to the ROI for analysis
-    currentFrame = videoFrames2Analyse.frames(1,frameNumber).cdata;
+    %     currentFrame = videoFrames2Analyse.frames(1,frameNumber).cdata;
+    currentFrame = videoFrames2Analyse{frameNumber};
     roi2Analyse = imcrop(currentFrame,roiPosition);
 
     %% ROI image processing
@@ -316,11 +327,11 @@ for frameNumber = 1:numFrames2Analyse
         displacement_eachBlob(frameNumber,:) = (calibration .* sqrt((coordinates(:,1,frameNumber)-coordinates(:,1,1)).^2 +...
             (coordinates(:,2,frameNumber)-coordinates(:,2,1)).^2))';
         avgDisplacement_eachBlob(frameNumber,1) = mean(displacement_eachBlob(frameNumber,:));
-        
+
         % Displacement between blobs between current and starting frames
         displacement_12(frameNumber,1) = distance_12(frameNumber,1) - distance_12(1,1);
         displacement_13(frameNumber,1) = distance_13(frameNumber,1) - distance_13(1,1);
-        displacement_23(frameNumber,1) = distance_23(frameNumber,1) - distance_23(1,1);       
+        displacement_23(frameNumber,1) = distance_23(frameNumber,1) - distance_23(1,1);
         avgDisplacement_betweenBlobs(frameNumber,1) = mean([displacement_12(frameNumber,1),...
             displacement_13(frameNumber,1),...
             displacement_23(frameNumber,1)]);
@@ -365,8 +376,8 @@ for frameNumber = 1:numFrames2Analyse
         timeStamp(1:frameNumber),displacement_eachBlob(1:frameNumber,3),'.-b',...
         timeStamp(1:frameNumber),avgDisplacement_eachBlob(1:frameNumber,1),'.-k');
     legend({'B1','B2','B3','AVG'},'location','southoutside','orientation','horizontal');
-    
-    
+
+
     %% Sub-plot 3: Displacement between blobs between current and starting frames
     subplot(1,3,3);
     axis square
