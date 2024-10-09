@@ -310,7 +310,7 @@ for frameNumber = 1:numFrames2Analyse
     roiDilate = bwmorph(roiBinary(:,:,1),'dilate');
     % Filter out the noise by using a median filter (default = 3x3)
     roiMedianFilter = medfilt2(roiDilate, medfilterSize);
-    % Get the corodinates of the centroids and bounding boxes of the blobs
+    % Get the coordinates of the centroids and bounding boxes of the blobs
     [centroid, bBox] = step(hblob, roiMedianFilter);
     coordinates(:,:,frameNumber) = centroid;
 
