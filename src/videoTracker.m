@@ -62,20 +62,28 @@ Ini.outputPath = [Ini.dataPath,'output/'];
 
 
 %% Define the screen size
+% % Calculate the "true" monitor DPI 
+% % % https://au.mathworks.com/matlabcentral/answers/54434-finding-the-height-of-windows-taskbar
+% toolkit = java.awt.Toolkit.getDefaultToolkit();
+% screenSize = toolkit.getScreenSize();
+% jframe = javax.swing.JFrame;
+% insets = toolkit.getScreenInsets(jframe.getGraphicsConfiguration());
+% screenWidth = screenSize.width;
+% taskBarOffset = insets.bottom;
+% screenHeight = screenSize.height- taskBarOffset;
+
+% Calculate the "virtual" monitor DPI 
 % Open an empty figure, save the handle to a variable
-f = figure('Units','pixels');
-set(f, 'Visible', 'off');
-% Maximise the figure window
-f.WindowState = 'maximized';
-fPos = get(f,'pos');
-% Calculate the taskbar offset
-taskBarOffset = fPos(2);
+fh = figure('Menu','none','ToolBar','none','Visible','off');
+% Calculate the height of the taskbar to offset
+taskBarOffset = fh.OuterPosition(4) - fh.InnerPosition(4) + fh.OuterPosition(2) - fh.InnerPosition(2);
+% Close the empty figure
+delete(fh);
+pause(0.075);
 % Define the screen dimensions (ex-taskbar)
+fPos = get(0,'screensize');
 screenWidth = round(fPos(3));
 screenHeight = round(fPos(4) - taskBarOffset);
-pause(0.075);
-% Close the empty figure
-clf; close all;
 %%
 
 
@@ -104,6 +112,7 @@ end
 
 
 %% Select the scalebar region of interest (ROI) in the image for calibration
+uiwait(helpdlg({'LEFT-click, drag & release = select a rectangular region of interest (ROI) for calibration'}));
 % Open a figure, save the handle to a variable
 f = figure('Units','pixels');
 % Make the figure invisible
@@ -139,6 +148,9 @@ set(f, 'Visible', 'on');
 % Select a line to calibrate
 [x,y] = getline(gcf);
 % Calculate the calibration distance in pixels
+% To ensure a horizontal line is always calculated, force the line to be 
+% horizontal by adjusting the second y-coordinate
+y(2) = y(1); 
 pixelDistance = round(sqrt((y(2)-y(1))^2 + (x(2)-x(1))^2));
 clf; close all;
 disp('...')
@@ -190,18 +202,19 @@ else
     timeStamp = listOfFrames .* timeInterval;
 
     % Loop through the listed frames
-%     videoFrames2Analyse = repmat(struct(), length(listOfFrames), 1);
+    videoFrames2Analyse = cell([1,length(listOfFrames)]);
     for ii = 1:length(listOfFrames)
         % Set the CurrentTime property to the specific frame
         frameNumber = listOfFrames(ii);
         % Convert frame number to time
         videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;  
         % Read the frame
-        videoFrames2Analyse{ii,:} = readFrame(videoFileInfo);
+        videoFrames2Analyse{ii} = readFrame(videoFileInfo);
         progress(ii,length(listOfFrames));
     end
 
-%     % Only read the video frames to analyse (saves time)
+    % Only read the video frames to analyse (saves time)
+%     videoFrames2Analyse = repmat(struct(), length(listOfFrames), 1);
 %     videoFrames2Analyse = mmread(pfName,listFrames);
     disp('Finished loading video...');
     toc
@@ -224,7 +237,8 @@ disp('...')
 
 
 %% Select a blob region of interest (ROI) in the video for analysis
-f = figure;
+uiwait(helpdlg({'LEFT-click, drag & release = select a rectangular region of interest (ROI) for blob tracking'}));
+f = figure('Units','pixels');
 set(f,'position',[(screenWidth-(videoFileInfo.Width/2))/2,...
     (screenHeight-(videoFileInfo.Height/2))/2,...
     videoFileInfo.Width/2,...
@@ -232,7 +246,7 @@ set(f,'position',[(screenWidth-(videoFileInfo.Width/2))/2,...
 % roiSelect = videoFrames2Analyse.frames(1,1).cdata;
 roiSelect = videoFrames2Analyse{1};
 imshow(roiSelect);
-set(f,'Name','Select a rectangle containing blobs for analysis','NumberTitle','on');
+set(f,'Name','Select a rectangle containing blobs for tracking','NumberTitle','on');
 roiPosition = getrect(f);
 clf; close all;
 %%
@@ -274,7 +288,7 @@ open(videoObj);
 tic
 disp('...')
 disp('Analysing video frames...')
-f = figure;
+f = figure('Units','pixels');
 set(f,'color','white');
 figWidth = 1500; figHeight = 500;
 set(f,'position',[(screenWidth-figWidth)/2,...

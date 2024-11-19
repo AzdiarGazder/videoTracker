@@ -1,6 +1,7 @@
 clc; clear all; close all
 currentFolder;
 excludeTime = 10;
+
 %% Load a video with blobs to analyse
 [fileName,pathName] = uigetfile([pwd,'*.avi'],'Load video to analyse');
 if fileName == 0
@@ -9,7 +10,7 @@ if fileName == 0
 else
     tic
     disp('...')
-    disp('Loading video...');
+    disp('Loading video via mmread...');
     pfName = [pathName fileName];
     disp(pfName);
     % Read the video file information
@@ -42,11 +43,18 @@ end
 
 
 % Loop through the desired frames
+tic
+disp('...')
+disp('Loading video via readFrame...');
+frames = cell([1,length(listFrames)]);
 for ii = 1:length(listFrames)
     % Set the CurrentTime property to the specific frame
     frameNumber = listFrames(ii);
     videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;  % Convert frame number to time
     % Read the frame
-    frame{ii,:} = readFrame(videoFileInfo);
+    frames{ii} = readFrame(videoFileInfo);
     progress(ii,length(listFrames));
 end
+disp('Finished loading video...');
+toc
+disp('...')
