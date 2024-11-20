@@ -146,7 +146,7 @@ set(f,'Name','Select a line defining the calibration distance','NumberTitle','on
 % Make the figure visible
 set(f, 'Visible', 'on');
 % Select a line to calibrate
-[x,y] = getline(gcf);
+[x,y] = getYLine(gcf);
 % Calculate the calibration distance in pixels
 % To ensure a horizontal line is always calculated, force the line to be 
 % horizontal by adjusting the second y-coordinate
