@@ -269,8 +269,8 @@ outputSubfolder = fullfile(Ini.outputPath,fileName(1:end-4));
 if ~exist(outputSubfolder, 'dir')
     mkdir(outputSubfolder);
 end
-pfName_dataOutput = [outputSubfolder,'/',fileName(1:end-4),'_output.txt'];
-pfName_videoOutput = [outputSubfolder,'/',fileName(1:end-4),'_output.avi'];
+pfName_dataOutput = [outputSubfolder,'/vidExt_',fileName(1:end-4),'.txt'];
+pfName_videoOutput = [outputSubfolder,'/vidExt_',fileName(1:end-4),'.avi'];
 %%
 
 
