@@ -32,8 +32,10 @@ function videoTracker(varargin)
 %                 a defined number of blobs.
 %
 %% Options:
-% 'exclude'    - @double, defines the seconds to exclude from the end of
-%                the video.
+% 'interval'   - @double, defines the time interval in seconds between 
+%                video frames to analyse.
+% 'exclude'    - @double, defines the time in seconds to exclude from the 
+%                end of the video.
 % 'blobs'      - @double, defines the number of blobs to track.
 % 'blobArea'   - @double, defines the minimum blob area to track.
 % 'frames'     - @double, defines the frame rate to save the output video.
@@ -45,6 +47,7 @@ function videoTracker(varargin)
 
 
 %% Pre-define options
+timeInterval = get_option(varargin,'interval',0.1);
 excludeTime = get_option(varargin,'exclude',10);
 numBlobs = get_option(varargin,'blobs',3);
 blobArea = get_option(varargin,'blobArea',200);
@@ -185,35 +188,52 @@ else
 
     % Define the number of frames in the video
     numFramesInVideo = videoFileInfo.Duration * videoFileInfo.FrameRate;
-    % Define the time interval between frames
-    timeInterval = 1/videoFileInfo.FrameRate;
-
+    % Define the minimum time interval between frames (based on frame rate)
+    minTimeInterval = 1 / videoFileInfo.FrameRate;
+    
+    % Define the maximum time interval (user can choose a sensible limit, e.g., 1 second)
+    maxTimeInterval = 5;  % This can be adjusted based on user preference or video duration
+    
+%     % Prompt user to input the time interval between frames
+%     prompt = sprintf('Enter a time interval between frames (min: %.3f s, max: %.1f s):', minTimeInterval, maxTimeInterval);
+%     timeInterval = inputdlg(prompt, 'Frame Interval', [1 50], {num2str(minTimeInterval)});
+%     
+%     % Convert user input to a number
+%     timeInterval = str2double(timeInterval{1});
+    
+    % Check if the input is valid
+    if isnan(timeInterval) || timeInterval < minTimeInterval || timeInterval > maxTimeInterval
+        error('Invalid time interval. Please enter a value between %.3f and %.1f seconds.', minTimeInterval, maxTimeInterval);
+    end
+    
     % Define the first frame to start analysis
     startFrame = 1;
-    % Exclude the frames of sample failure
+    % Exclude the frames of sample failure (this part assumes excludeTime is defined)
     numFrames2Delete = excludeTime * videoFileInfo.FrameRate;
     % Define the last frame to end analysis
     endFrame = numFramesInVideo - numFrames2Delete;
-    % List the total number of frames to analyse
-    listOfFrames = [startFrame : videoFileInfo.FrameRate : endFrame]';
+    % List the frames based on the user-defined interval
+     listOfFrames = [startFrame : timeInterval * videoFileInfo.FrameRate : endFrame]';
+
     % Define the total number of frames to analyse
     numFrames2Analyse = length(listOfFrames);
     % Add a time stamp to each frame to analyse
-    timeStamp = listOfFrames .* timeInterval;
+    timeStamp = (listOfFrames - 1) / videoFileInfo.FrameRate;
 
     % Loop through the listed frames
-    videoFrames2Analyse = cell([1,length(listOfFrames)]);
+    videoFrames2Analyse = cell([1, length(listOfFrames)]);
+    progress(0, length(listOfFrames));
     for ii = 1:length(listOfFrames)
         % Set the CurrentTime property to the specific frame
         frameNumber = listOfFrames(ii);
         % Convert frame number to time
-        videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;  
+         videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;
         % Read the frame
         videoFrames2Analyse{ii} = readFrame(videoFileInfo);
-        progress(ii,length(listOfFrames));
+        progress(ii, length(listOfFrames));
     end
 
-    % Only read the video frames to analyse (saves time)
+%    % Only read the video frames to analyse (saves time)
 %     videoFrames2Analyse = repmat(struct(), length(listOfFrames), 1);
 %     videoFrames2Analyse = mmread(pfName,listFrames);
     disp('Finished loading video...');
@@ -288,6 +308,7 @@ open(videoObj);
 tic
 disp('...')
 disp('Analysing video frames...')
+progress(0,numFrames2Analyse);
 f = figure('Units','pixels');
 set(f,'color','white');
 figWidth = 1500; figHeight = 500;
@@ -419,6 +440,8 @@ for frameNumber = 1:numFrames2Analyse
     %%
 
     writeVideo(videoObj, getframe(f));
+
+    progress(frameNumber,numFrames2Analyse);
 end
 disp('Finished analysing video frames...');
 toc
