@@ -121,7 +121,7 @@ f = figure('Units','pixels');
 % Make the figure invisible
 set(f, 'Visible', 'off');
 % Display the image
-imshow(imageFrame);
+imshow(imageFrame, 'InitialMagnification', 100);
 % Maximise the figure window
 f.WindowState = 'maximized';
 % Maintain plot aspect ratio
@@ -140,7 +140,7 @@ f = figure('Units','pixels');
 % Make the figure invisible
 set(f, 'Visible', 'off');
 % Display the image
-imshow(roiSelectedArea);
+imshow(roiSelectedArea, 'InitialMagnification', 100);
 % Maximise the figure window
 f.WindowState = 'maximized';
 % Maintain plot aspect ratio
@@ -150,15 +150,36 @@ set(f,'Name','Select a line defining the calibration distance','NumberTitle','on
 set(f, 'Visible', 'on');
 % Select a line to calibrate
 [x,y] = getYLine(gcf);
+
 % Calculate the calibration distance in pixels
 % To ensure a horizontal line is always calculated, force the line to be 
-% horizontal by adjusting the second y-coordinate
-y(2) = y(1); 
-pixelDistance = round(sqrt((y(2)-y(1))^2 + (x(2)-x(1))^2));
+% horizontal by adjusting the y-coordinates
+y(:) = 0;
+% Adjust the coordinates from the ROI to the full image coordinates
+x = roiPosition(1) + x;
+y = roiPosition(2) + y;
+% Calculate the pixel distance in the full image (not ROI)
+pixelDistance = round(sqrt((x(2) - x(1))^2 + (y(2) - y(1))^2));
+
 clf; close all;
-disp('...')
-disp('USER INPUT')
-unitDistance = input('Enter unit distance (in mm) = ');
+% disp('...')
+% disp('USER INPUT')
+% unitDistance = input('Enter unit distance (in mm) = ');
+
+% Define the minimum unit distance
+minUnitDistance = 0.1;
+% Define the maximum unit distance
+maxUnitDistance = 5E3; 
+% Prompt user to input the time interval between frames
+prompt = sprintf('Enter unit distance (in mm) :');
+unitDistance = inputdlg(prompt, 'Unit Distance', [1 50], {num2str(minUnitDistance)});
+% Convert user input to a number
+unitDistance = str2double(unitDistance{1});
+% Check if the input is valid
+if isnan(unitDistance) || unitDistance < minUnitDistance || unitDistance > maxUnitDistance
+    error('Invalid unit distance. Please enter a value between %.3f and %.1f mm.', minUnitDistance, maxUnitDistance);
+end
+
 % Calculate the calibration
 calibration = unitDistance/pixelDistance;
 disp('...')
@@ -166,7 +187,7 @@ disp('IMAGE CALIBRATION')
 disp(['Image frame resolution      = ',num2str(imageFileInfo.Width),' x ',num2str(imageFileInfo.Height),' pixels']);
 disp(['Distance drawn: ', num2str(pixelDistance), ' pixels  = ', num2str(unitDistance), ' mm']);
 disp(['Calibration   : 1 pixel     = ',num2str(calibration),' mm']);
-disp(['                1 mm        = ',num2str(1/calibration),' pixels']);
+disp(['                1 mm        = ',num2str(round(1/calibration)),' pixels']);
 disp('...')
 %%
 
@@ -187,12 +208,14 @@ else
     videoFileInfo = VideoReader(pfName);
 
     % Define the number of frames in the video
+    % This method is used because the "videoFileInfo.numFrames" property
+    % in the VideoReader function is depreciated since Matlab 2015b.
     numFramesInVideo = videoFileInfo.Duration * videoFileInfo.FrameRate;
     % Define the minimum time interval between frames (based on frame rate)
     minTimeInterval = 1 / videoFileInfo.FrameRate;
     
-    % Define the maximum time interval (user can choose a sensible limit, e.g., 1 second)
-    maxTimeInterval = 5;  % This can be adjusted based on user preference or video duration
+    % Define the maximum time interval
+    maxTimeInterval = 5;  % Adjust based on user preference or video duration
     
 %     % Prompt user to input the time interval between frames
 %     prompt = sprintf('Enter a time interval between frames (min: %.3f s, max: %.1f s):', minTimeInterval, maxTimeInterval);
@@ -208,12 +231,12 @@ else
     
     % Define the first frame to start analysis
     startFrame = 1;
-    % Exclude the frames of sample failure (this part assumes excludeTime is defined)
+    % Exclude the frames of sample failure
     numFrames2Delete = excludeTime * videoFileInfo.FrameRate;
     % Define the last frame to end analysis
     endFrame = numFramesInVideo - numFrames2Delete;
     % List the frames based on the user-defined interval
-     listOfFrames = [startFrame : timeInterval * videoFileInfo.FrameRate : endFrame]';
+     listOfFrames = round((startFrame : timeInterval * videoFileInfo.FrameRate : endFrame)');
 
     % Define the total number of frames to analyse
     numFrames2Analyse = length(listOfFrames);
@@ -230,6 +253,13 @@ else
          videoFileInfo.CurrentTime = (frameNumber - 1) / videoFileInfo.FrameRate;
         % Read the frame
         videoFrames2Analyse{ii} = readFrame(videoFileInfo);
+
+        % Verify the extracted frame number by comparing time
+        actualFrameTime = videoFileInfo.CurrentTime * videoFileInfo.FrameRate;
+        if abs(actualFrameTime - frameNumber) > 1e-3  % adjust tolerance as required
+            warning('Frame mismatch detected at index %d: expected frame %d, but extracted frame %.2f.', ii, frameNumber, actualFrameTime);
+        end
+        
         progress(ii, length(listOfFrames));
     end
 
@@ -250,7 +280,7 @@ disp('VIDEO CALIBRATION')
 calibration = calibration * (imageFileInfo.Width/videoFileInfo.Width);
 disp(['Video frame resolution      = ',num2str(videoFileInfo.Width),' x ',num2str(videoFileInfo.Height),' pixels']);
 disp(['Calibration   : 1 pixel     = ',num2str(calibration),' mm']);
-disp(['                1 mm        = ',num2str(1/calibration),' pixels']);
+disp(['                1 mm        = ',num2str(round(1/calibration)),' pixels']);
 disp('...')
 %%
 
@@ -265,7 +295,7 @@ set(f,'position',[(screenWidth-(videoFileInfo.Width/2))/2,...
     videoFileInfo.Height/2]);
 % roiSelect = videoFrames2Analyse.frames(1,1).cdata;
 roiSelect = videoFrames2Analyse{1};
-imshow(roiSelect);
+imshow(roiSelect, 'InitialMagnification', 100);
 set(f,'Name','Select a rectangle containing blobs for tracking','NumberTitle','on');
 roiPosition = getrect(f);
 clf; close all;
@@ -349,7 +379,14 @@ for frameNumber = 1:numFrames2Analyse
     [centroid, bBox] = step(hblob, roiMedianFilter);
     coordinates(:,:,frameNumber) = centroid;
 
-    % Distance between blobs in current frame
+    % To ensure a horizontal line is always calculated, force the lines to 
+    % be horizontal by adjusting the y-coordinates
+    coordinates(:, 2, frameNumber) = 0;
+    % Adjust the coordinates from the ROI to the full image coordinates
+    coordinates(:, 1, frameNumber) = roiPosition(1) + coordinates(:, 1, frameNumber);
+    coordinates(:, 2, frameNumber) = roiPosition(2) + coordinates(:, 2, frameNumber);
+
+    % Distance between the blobs in the current frame
     distance_12(frameNumber,1) = calibration .* sqrt((coordinates(1,1,frameNumber)-coordinates(2,1,frameNumber)).^2 +...
         (coordinates(1,2,frameNumber)-coordinates(2,2,frameNumber)).^2);
     distance_13(frameNumber,1) = calibration .* sqrt((coordinates(1,1,frameNumber)-coordinates(3,1,frameNumber)).^2 +...
@@ -357,13 +394,13 @@ for frameNumber = 1:numFrames2Analyse
     distance_23(frameNumber,1) = calibration .* sqrt((coordinates(2,1,frameNumber)-coordinates(3,1,frameNumber)).^2 +...
         (coordinates(2,2,frameNumber)-coordinates(3,2,frameNumber)).^2);
 
-    if frameNumber ~= 1
-        % Displacement of each blob between current and starting frames
+    if frameNumber > 1
+        % Displacement of each blob between the current and starting frames
         displacement_eachBlob(frameNumber,:) = (calibration .* sqrt((coordinates(:,1,frameNumber)-coordinates(:,1,1)).^2 +...
             (coordinates(:,2,frameNumber)-coordinates(:,2,1)).^2))';
         avgDisplacement_eachBlob(frameNumber,1) = mean(displacement_eachBlob(frameNumber,:));
 
-        % Displacement between blobs between current and starting frames
+        % Displacement between blobs between the current and starting frames
         displacement_12(frameNumber,1) = distance_12(frameNumber,1) - distance_12(1,1);
         displacement_13(frameNumber,1) = distance_13(frameNumber,1) - distance_13(1,1);
         displacement_23(frameNumber,1) = distance_23(frameNumber,1) - distance_23(1,1);
